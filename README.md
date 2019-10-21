@@ -14,33 +14,52 @@ This repository contains selected notes and code snippets for Deep Learning (neu
 
 * GitHub: https://github.com/daddyjab/DL_Notes
 * Jupyter Notebooks:
-    * 1-Dataset Generation and Basic Linear Regression:<br>
-    https://github.com/daddyjab/ML_Notes/blob/master/1-Dataset%20Generation%20and%20Basic%20Linear%20Regression.ipynb 
-
-    * 2-Multiple Linear Regression:<br>
-    https://github.com/daddyjab/ML_Notes/blob/master/2-Multiple%20Linear%20Regression.ipynb
-
-    * 3-Encoding Categorical Data, Scaling, and Normalization:<br>
-    https://github.com/daddyjab/ML_Notes/blob/master/4-Linear%20Models%20for%20Regression-LinearRegression%2C%20Lasso%2C%20Ridge%2C%20ElasticNet.ipynb 
-
-    * 4-Linear Models for Regression-LinearRegression, Lasso, Ridge, ElasticNet:<br>
-    https://github.com/daddyjab/ML_Notes/blob/master/4-Linear%20Models%20for%20Regression-LinearRegression%2C%20Lasso%2C%20Ridge%2C%20ElasticNet.ipynb 
-
-    * 5-Linear Models for Classification-Logistic Regression:<br>
-    https://github.com/daddyjab/ML_Notes/blob/master/5-Linear%20Models%20for%20Classification-Logistic%20Regression.ipynb 
-    
-    * 6-Decision Trees:<br>
-    https://github.com/daddyjab/ML_Notes/blob/master/6-Decision%20Trees.ipynb
+    * 01-DL-Single_Node_Neural_Network:<br>
+    https://github.com/daddyjab/DL_Notes/blob/master/01-DL-Single_Node_Neural_Network.ipynb 
 
 # Visualizations
 
-| Figure: 1-Dataset Generation and Basic Linear Regression - Jupyter Notebook |
-|----------|
-| ![Figure: 1-Dataset Generation and Basic Linear Regression is Loading...](docs/1-Dataset_Generation_and_Basic_Linear_Regression.png "Figure 1: 1-Dataset Generation and Basic Linear Regression") |
+The single node neural network was used fitted using 60,000 training examples in batches of 32 examples per iteration.  The results for some digits were very good, while the probably of correctly predicting the target digit was lower with other digits.
+* With `SINGLE_TARGET_DIGIT = 1`, the model performed well, which might be expected since the digit `1` is fairly different in appearance than other digits 0 and 2 through 9.
+
+| <b>Table DL-01-A: Single Node Neural Network Performance - Single Target Digit = 1</b> |
+|:--------------------------------------------------------------------------------------:|
+
+|            | Training Data | Testing Data |
+|:------------|:---------------:|:--------------:|
+| Count of Examples | 60,000 | 10,000 |
+| Count of Target Digit in Examples | 6,742 (11.2%) | 1,135 (11.3%) |
+| Accuracy | 0.9840 | 0.9861 |
+| Probability of Predicting Correctly<br>when Example is the Target Digit | 0.9058 | 0.9075 |
+| Probability of Predicting Correctly<br>when Example is Not the Target Digit | 0.9939 | 0.9962 |
+| Fitting Epochs (Iterations) | 300 | n/a |
+| Fitting Batch Size | 32 | n/a |
+| Minimum Batch Loss | 0.0199 @ Epoch 206 | n/a |
+
+<br>
+
+* However, with `SINGLE_TARGET_DIGIT = 3`, a digit that is more easily confused with other digits, the model performed more poorly.
+    * The probability of the model correctly predicting the target digit = 3 is low at 0.6525, reflecting the more difficult challenge in distinguishing 3 from digits such as 0 or 8.  The model is bias towards digits being non-target (vs. being the target digit 3).
+    * The overall accuracy is high, but this is mainly because 88.7% of examples are *not* the target digit 3, and correct predictions of digits as being non-target is good at 0.9945.
+
+| <b>Table DL-01-B: Single Node Neural Network Performance - Single Target Digit = 3</b> |
+|:--------------------------------------------------------------------------------------:|
+
+|            | Training Data | Testing Data |
+|:------------|:---------------:|:--------------:|
+| Count of Examples | 60,000 | 10,000 |
+| Count of Target Digit in Examples | 6,131 (10.2% of total) | 1,010 (10.1% of total) |
+| Accuracy | 0.9581 | 0.9600 |
+| Probability of Predicting Correctly<br>when Example is the Target Digit | 0.6462 | 0.6525 |
+| Probability of Predicting Correctly<br>when Example is Not the Target Digit | 0.9936 | 0.9945 |
+| Fitting Epochs (Iterations) | 300 | n/a |
+| Fitting Batch Size | 32 | n/a |
+| Minimum Batch Loss | 0.0560 @ Epoch 128 | n/a |
+
+<br>
+* Going foward, the single node  neural network class can be modified to implement more capable neural networks with multiple nodes and layers.
 
 
-| Figure: 2-Multiple Linear Regression - Jupyter Notebook |
-|----------|
-| ![Figure: 2-Multiple Linear Regression is Loading...](docs/2-Multiple_Linear_Regression-1.png "Figure: 2-Multiple Linear Regression") |
-| ![Figure: 2-Multiple Linear Regression is Loading...](docs/2-Multiple_Linear_Regression-2.png "Figure: 2-Multiple Linear Regression") |
-
+| Figure DL-01-C: Model Fit History for a Single Node Neural Network - Single Target Digit = 1 | Figure DL-01-D: Model Fit History for a Single Node Neural Network - Single Target Digit = 3 |
+|:----------:|:----------:|
+| ![Figure DL-01-C: Model Fit History for a Single Node Neural Network - Single Target Digit = 1...](docs/DL-01-Figure-C-Model_Fit_History-Target_1.png "Figure DL-01-C: Model Fit History for a Single Node Neural Network - Single Target Digit = 1") | ![Figure DL-01-D: Model Fit History for a Single Node Neural Network - Single Target Digit = 3...](docs/DL-01-Figure-D-Model_Fit_History-Target_3.png "Figure DL-01-D: Model Fit History for a Single Node Neural Network - Single Target Digit = 3") |

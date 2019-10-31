@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 
 def sigmoid(a_vector, a_calc_derivative=False):
     """
@@ -59,6 +60,7 @@ def leaky_relu(a_vector, a_calc_derivative=False):
     
     else:
         return np.maximum(leak_factor*a_vector, a_vector)
+
 
 def evaluate(a_y_predict, a_y_actual):
     """
@@ -125,25 +127,28 @@ def evaluate(a_y_predict, a_y_actual):
     }
     return retval    
 
+
 def plot_fit_history(a_fit_hist, a_valid_info = None):
     """
     Plot the fit history, including Loss (i.e., Cost) and Training Accuracy if provided
     """
     
+    # DEBUG
+    DEBUG_LEVEL = 0
+    
     # Check fit history arguments
     try:
         # Get the cost and accuracy lists from the fit history dictionary
-        h_n_iter = a_fit_hist['n_iter']
-        h_cost = np.squeeze(a_fit_hist['cost'])
-        h_accuracy = np.squeeze(a_fit_hist['accuracy'])
+        h_cost = list(a_fit_hist['cost'])
+        h_accuracy = list(a_fit_hist['accuracy'])
 
     except Exception as e:
         # Re-raise the exception that got us here,
         # including any error message passed along
         raise
     
-    assert len(h_cost) != 0, f"Fit history cost data is missing: Cost[{len(h_cost)}]"
     assert len(h_accuracy) != 0, f"Fit history accuracy data is missing: Accuracy[{len(h_accuracy)}]"
+    assert len(h_cost) != 0, f"Fit history cost data is missing: Cost[{len(h_cost)}]"
     assert len(h_cost) == len(h_accuracy), f"Fit history accuracy and cost data have different lengths: Accuracy[{len(h_accuracy)}], Cost[{len(h_cost)}]"
     
     # Check optional validation info arguments, if provided
@@ -163,25 +168,52 @@ def plot_fit_history(a_fit_hist, a_valid_info = None):
         # Re-raise the exception that got us here,
         # including any error message passed along
         raise
-    
-    fig1 = plt.figure(figsize=(10,10))
+        
+    # Determine how many iterations/epochs are in the fit history
+    # h_n_iter = a_fit_hist['n_iter']
+    h_n_iter = len(h_accuracy)
 
-    # Create a single plot of all results
+    # Skip some samples if there are too many points to plot
+    # NOTE: Scale things so we have no more than 1000 points to plot.
+    PLOT_MAX_POINTS = 1000
+    point_increment = max(1, h_n_iter // PLOT_MAX_POINTS)
+
+    if DEBUG_LEVEL >= 2:
+        d_text  = f"\nDEBUG: plot_fit_history(): After Argument Checks\n"
+        
+        d_text += f"h_n_iter - Value: {h_n_iter}, Type: {type(h_n_iter)},\n"
+        d_text += f"h_cost - Len: {len(h_cost)}, Type: {type(h_cost)},\n"
+        d_text += f"h_accuracy - Len: {len(h_accuracy)}, Type: {type(h_accuracy)},\n"
+        
+        if DEBUG_LEVEL >= 3:
+            d_text += f"h_cost - Value:\n{h_cost},\n"
+            d_text += f"h_accuracy - Value:\n{h_accuracy},\n"
+
+        print(d_text)    
+
+    # Figure with 2 subplots: Accuracy and Cost
+    fig1 = plt.figure( figsize=(20,10) )
+
+    # Accuracy plot
     ax1 = fig1.add_subplot( 2,1,1 )
+    
+    # Cost plot
     ax2 = fig1.add_subplot( 2,1,2 )
 
     # X-axis - number of epochs in the fit history
     x_vals = range(len(h_cost))
 
-    # Plots
-    ax1.set_ylim(ymin=0.9*min(h_accuracy), ymax=1.1)
-    ax1.plot( x_vals, h_accuracy,
+    # Plot Accuracy
+    ax1.set_ylim(ymin=0.8*min(h_accuracy), ymax=1.1)
+    ax1.plot( x_vals[::point_increment], h_accuracy[::point_increment],
               label='Accuracy (Training)', c='k', linestyle='-')
 
-    ax2.plot( x_vals, h_cost,
+    # Plot Cost
+    ax2.set_ylim(ymin=0.8*min(h_cost), ymax=1.1*max(h_cost) )
+    ax2.plot( x_vals[::point_increment], h_cost[::point_increment],
               label='Loss (Training)', c='k', linestyle='-')
 
-    # Add text note on the max and min accuracy and loss points
+    # Add text note on points of max and min accuracy
     acc_min_idx = np.argmin(h_accuracy)
     ax1.text( x=acc_min_idx, y=h_accuracy[acc_min_idx]*1.02, c='b',
               s=f"Min: {h_accuracy[acc_min_idx]:.4f}\nEpoch: {acc_min_idx}" )
@@ -190,6 +222,7 @@ def plot_fit_history(a_fit_hist, a_valid_info = None):
     ax1.text( x=acc_max_idx, y=h_accuracy[acc_max_idx]*1.02, c='b',
               s=f"Max: {h_accuracy[acc_max_idx]:.4f}\nEpoch: {acc_max_idx}" )
 
+    # Add text note on points of max and min cost
     loss_min_idx = np.argmin(h_cost)
     ax2.text( x=loss_min_idx, y=h_cost[loss_min_idx]*1.02, c='r',
               s=f"Min: {h_cost[loss_min_idx]:.4f}\nEpoch: {loss_min_idx}" )
@@ -221,15 +254,17 @@ def plot_fit_history(a_fit_hist, a_valid_info = None):
     except:
         pass
 
+    # Set Access plot title, axis labeling, and legend position
     ax1.legend(loc='lower right')
     ax1.set_xlabel("Epoch")
     ax1.set_ylabel("Batch Accuracy")
     ax1.set_title("Model Fitting History - Accuracy")
 
+    # Set Cost plot title, axis labeling, and legend position
     ax2.legend(loc='upper right')
     ax2.set_xlabel("Epoch")
     ax2.set_ylabel("Batch Loss")
     ax2.set_title("Model Fitting History - Loss")
 
+    # Save the image to file
     fig1.savefig("docs/DL-xx-Figure-x-Model_Fit_History.png")
-

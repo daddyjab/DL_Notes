@@ -1,4 +1,8 @@
+# Dependencies: Standard libraries
 import numpy as np
+
+# Dependency: "NN_Support" (Activation, Evaluation, Plotting Functions)
+from NN_Support import (sigmoid, relu, leaky_relu)
 
 class Multilayer_NN():
     """

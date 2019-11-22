@@ -101,7 +101,6 @@ class Multilayer_NN():
             'is_fitted': False,         # Flag: The model has been fitted to training data
             
             'alpha': None,              # Learning Rate
-            'lambda': None,             # Regularization Rate
             'batch_size': None,         # Size of example batches used for validation each iteration
             'max_iter': None,           # Maximum number of iteractions to allow
             'm': None,                  # Number of examples in the input data
@@ -161,9 +160,7 @@ class Multilayer_NN():
         for layer in range(1, self._config['L']+1):
 
             # Initialize parameters for each layer: Coeffiecients W (to random numbers) and b (to zeros)
-            # NOTE: Using "He Initialization"
-            W_val = np.random.randn( self._config['all_layers'][layer], self._config['all_layers'][layer-1] ) \
-                            * np.sqrt( 2.0 / self._config['all_layers'][layer-1] )
+            W_val = np.random.randn( self._config['all_layers'][layer], self._config['all_layers'][layer-1] ) * 0.01
             b_val = np.zeros( (self._config['all_layers'][layer], 1) )
             
             # Add the parameters to the param dictionary
@@ -191,7 +188,7 @@ class Multilayer_NN():
         
         return retval
 
-    def _set_fit_config(self, a_X, a_y, a_alpha = 0.01, a_batch_size = 32, a_max_iter = 10000, a_lambda=0.0):
+    def _set_fit_config(self, a_X, a_y, a_alpha = 0.01, a_batch_size = 32, a_max_iter = 10000):
         """
         Perform fit argument checks and set attributes
         
@@ -201,7 +198,6 @@ class Multilayer_NN():
             a_alpha: Learning Rate
             a_batch_size: Number of examples to use for validation for each iteration
             a_max_iter: Maximum number of iterations to allow
-            a_lambda: Regularization Rate (default 0.0 => No regularization)
             
         Returns:
             None: Values are updated for each layer in self._config: batch_size, alpha, max_iter, m
@@ -222,10 +218,6 @@ class Multilayer_NN():
         assert int(a_max_iter) > 0, f"Maximum Iterations must be a number > 0: max_iter = {a_max_iter} [{type(a_max_iter)}]"
         self._config['max_iter'] = int(a_max_iter)   # Maximum number of iterations to perform
         
-        # Confirm a valid regularization rate lambda has been provided
-        assert float(a_lambda) >= 0.0, f"Regularization Rate lambda must be a number >= 0.0: lambda = {a_lambda} [{type(a_lambda)}]"
-        self._config['lambda'] = float(a_lambda)       # Regularization rate
-                
         # Confirm that the feature count is valid (i.e., matches first entry in all_layers)
         assert a_X.shape[0] == self._config['all_layers'][0], f"Number of features in X must match layers specification: X.shape = {a_X.shape}, all_layers[0] = {self._config['all_layers'][0]}"
         
@@ -468,15 +460,11 @@ class Multilayer_NN():
         
         Arguments:
             a_y_batch: A batch subset of actual output values
-            a_lambda: Regularization parameter, with a_lambda = 0.0 => No regularization
 
         Returns:
             cost_val: Cost(Loss) calculated for this iteration
             accuracy_val: Batch accuracy for this iteration
         """
-        
-        #DEBUG
-        DEBUG_LEVEL = 0
         
         # Confirm that the model is configured before attempting to initialize the parameters
         assert self._config['is_configured'], f"Cannot update parameters W and b until the model is configured: is_configured = {self._config['is_configured']} [{type(self._config['is_configured'])}]"
@@ -487,43 +475,12 @@ class Multilayer_NN():
         # Get the batch size
         n_batch_size = self._config['batch_size']
         
-        # Get the regularization rate
-        lambda_reg_rate = self._config['lambda']
-
         # Get the predicted output of the output layer (i.e., A[L])
         AL_val = self._cache['A']['A'+str(L_val)]
 
         # Calculate the cost for this iteration
         cost_val = - (1/n_batch_size) * np.sum( a_y_batch*np.log(AL_val) + (1-a_y_batch)*np.log(1-AL_val) )
-        
-        # Calculate the regularization cost for this iteration if required
-        if lambda_reg_rate > 0.0:
-            # Loop through each of the layers
-            cost_reg = 0
 
-            for layer in range(1, L_val+1):
-
-                if DEBUG_LEVEL >= 2:
-                    d_text  = f"\nDEBUG: _calculate_cost(): Calculating regularization cost for Layer {layer} of {L_val}"
-                    print(d_text)
-
-                # Ensure that the needed parameter values are present
-                assert 'W'+str(layer) in self._param['W'].keys(), f"Missing parameter value W{layer} needed to update layer {layer}: W = {self._param['W']}"
-
-                if DEBUG_LEVEL >=2:
-                    d_text  = f"\nDEBUG: _calculate_cost(): After Validity Checks\n"
-                    d_text += f"W{layer}.shape: {self._param['W']['W'+str(layer)].shape}, "
-                    print(d_text)
-
-                # Calculate and aggregate the sum of squares of the W coefficient for this layer
-                cost_reg += np.sum( np.square( self._param['W']['W'+str(layer)] ) )
-
-            # Scale the regularization cost by 1/(number of samples) and a_lambda/2.0
-            cost_reg *= 1.0/n_batch_size * lambda_reg_rate/2.0
-            
-            # Add this regularization cost to the overall cost
-            cost_val += cost_reg
-            
         # Calculate the batch accuracy for this iteration
         # NOTE: A-Y = dZ, which is already calculated and cached,
         #       but will just use A and Y directly here to remove dependency on back propagation
@@ -589,8 +546,9 @@ class Multilayer_NN():
         # Now that configuration is set,
         # initialize the parameters W and b using the configuration information
         self._init_param()
+
             
-    def fit(self, a_X_train, a_y_train, a_alpha = 0.01, a_batch_size = 32, a_max_iter = 10000, a_lambda = 0.0):
+    def fit(self, a_X_train, a_y_train, a_alpha = 0.01, a_batch_size = 32, a_max_iter = 10000):
         """
         Fit the model coefficients w and b to the training data with specified arguments
         
@@ -600,7 +558,6 @@ class Multilayer_NN():
             a_alpha: Learning Rate
             a_batch_size: Number of examples to use for validation for each iteration
             a_max_iter: Maximum number of iterations to allow
-            a_lambda: Regularization Rate (default 0.0 => No regularization)
 
         Returns:
             None: Values are updated in:
@@ -616,7 +573,7 @@ class Multilayer_NN():
         assert self._config['is_configured'], "Cannot fit the model to training data until the model is configured"
 
         # Set the fit configuration, including basic error checking
-        self._set_fit_config(a_X_train, a_y_train, a_alpha, a_batch_size, a_max_iter, a_lambda)
+        self._set_fit_config(a_X_train, a_y_train, a_alpha, a_batch_size, a_max_iter)
         
         # Do a basic loop through the samples for now
         # NEXT: Create a generator function to automatically manage batches

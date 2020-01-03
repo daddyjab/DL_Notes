@@ -98,15 +98,15 @@ class Multilayer_NN():
         #   (provided at configure or fitting)
         self._config = {
             'is_configured': False,     # Flag: The model has been configured
-            'is_fitted': False,         # Flag: The model has been fitted to training data
+            'is_fitted': False,         # Flag: The model has been fitted to the training set
             
             'alpha': None,              # Learning Rate
             'lambda': None,             # Regularization Rate
-            'batch_size': None,         # Size of example batches used for validation each iteration
-            'max_iter': None,           # Maximum number of iteractions to allow
-            'm': None,                  # Number of examples in the input data
-            'n_x': None,                # Number of features in the input data
-            'n_y': None,                # Number of outputs in the output data
+            'batch_size': None,         # Size of mini-batches used for training in each iteration
+            'max_epochs': None,         # Maximum number of passes through the entire training set (i.e., epochs) to allow
+            'm': None,                  # Number of examples in the training set inputs
+            'n_x': None,                # Number of features in the training set inputs
+            'n_y': None,                # Number of outputs in the training set labels
             'L': None,                  # Total number of hidden layers + output layer
             'all_layers': [],           # Layer node/unit counts (i.e., layers 0 through L)
         }        
@@ -133,9 +133,9 @@ class Multilayer_NN():
         # History
         # - Fitting history and related info:
         self._hist = {
-            'n_iter': None,          # Number of iterations actually performed
-            'cost': [],              # List of Cost/Loss by Iteration
-            'accuracy': []           # List of Per-Batch Validation Accuracy by Iteration
+            'n_epochs': None,        # Number of epochs over which training was actually performed
+            'cost': [],              # List of cost/loss per epoch
+            'accuracy': []           # List of training accuracy per epoch
         }
         
     def _init_param(self):
@@ -191,7 +191,7 @@ class Multilayer_NN():
         
         return retval
 
-    def _set_fit_config(self, a_X, a_y, a_alpha = 0.01, a_batch_size = 32, a_max_iter = 10000, a_lambda=0.0):
+    def _set_fit_config(self, a_X, a_y, a_alpha = 0.01, a_batch_size = 32, a_max_epochs = 10000, a_lambda=0.0, a_optim='none', a_beta1=0.9, a_beta2=0.999, a_epsilon=10e-08):
         """
         Perform fit argument checks and set attributes
         
@@ -200,30 +200,35 @@ class Multilayer_NN():
             a_y: Output labels (numpy array) ~ shape ( # outputs, # examples )
             a_alpha: Learning Rate
             a_batch_size: Number of examples to use for validation for each iteration
-            a_max_iter: Maximum number of iterations to allow
+            a_max_epochs: Maximum number of epochs (i.e., full passes through the training set) to allow
             a_lambda: Regularization Rate (default 0.0 => No regularization)
+            a_optim: Optimizer - 'none' or 'adam'
+            a_beta1: Beta1 used with momentum factor (default 0.9; set to 0.0 for no momentum optimization)
+            a_beta2: Beta2 used with RMSprop factor (default 0.999; set to 0.0 for no RMSprop optimization)
+            a_epsilon: A small value Epsilon used to avoid large/unstable values due to denominator -> 0 (default 10E-08)
             
         Returns:
-            None: Values are updated for each layer in self._config: batch_size, alpha, max_iter, m
+            None: Values are updated in self._config:
+                       batch_size, alpha, max_epochs, lambda, m, optim, beta1, beta2, epsilon
         """
 
         # Confirm that the model is configured before attempting to initialize the parameters
         assert self._config['is_configured'], f"Cannot set the fit configuration until model is configured: is_configured = {self._config['is_configured']} [{type(self._config['is_configured'])}]"
 
         # Confirm a valid batch size has been provided
-        assert int(a_batch_size) > 0, f"Batch size must be a number > 0: batch_size = {a_batch_size} [{type(a_batch_size)}]"
+        assert int(a_batch_size) > 0, f"Batch size must be a number > 0: a_batch_size = {a_batch_size} [{type(a_batch_size)}]"
         self._config['batch_size'] = int(a_batch_size)   # Batch size to use per iteration
         
         # Confirm a valid learning rate alpha has been provided
-        assert float(a_alpha) > 0.0, f"Learning Rate alpha must be a number > 0.0: alpha = {a_alpha} [{type(a_alpha)}]"
+        assert float(a_alpha) > 0.0, f"Learning Rate alpha must be a number > 0.0: a_alpha = {a_alpha} [{type(a_alpha)}]"
         self._config['alpha'] = float(a_alpha)       # Learning rate alpha to apply
                 
-        # Confirm a valid batch size has been provided
-        assert int(a_max_iter) > 0, f"Maximum Iterations must be a number > 0: max_iter = {a_max_iter} [{type(a_max_iter)}]"
-        self._config['max_iter'] = int(a_max_iter)   # Maximum number of iterations to perform
+        # Confirm a valid limit on the number of epochs (i.e., passes through the training set) has been provided
+        assert int(a_max_epochs) > 0, f"Maximum Epochs (i.e., passes through training set) must be a number > 0: a_max_epochs = {a_max_epochs} [{type(a_max_epochs)}]"
+        self._config['max_epochs'] = int(a_max_epochs)   # Maximum Epochs
         
         # Confirm a valid regularization rate lambda has been provided
-        assert float(a_lambda) >= 0.0, f"Regularization Rate lambda must be a number >= 0.0: lambda = {a_lambda} [{type(a_lambda)}]"
+        assert float(a_lambda) >= 0.0, f"Regularization Rate lambda must be a number >= 0.0: a_lambda = {a_lambda} [{type(a_lambda)}]"
         self._config['lambda'] = float(a_lambda)       # Regularization rate
                 
         # Confirm that the feature count is valid (i.e., matches first entry in all_layers)
@@ -251,6 +256,24 @@ class Multilayer_NN():
         # Confirm X and Y training data are consistent with configuration
         assert a_X.shape[1] == n_y_examples, f"Number of training examples are different for X vs y: X.shape = {a_X.shape}, y.shape = {a_y.shape}"
         self._config['m'] = int(a_X.shape[1])    # Number of Examples
+        
+        # Confirm a valid optimizer has been selected
+        valid_optimizers=['none', 'adam']
+        assert str(a_optim) in valid_optimizers, f"Optimizer must be selected from [{valid_optimizers}]: a_optim = {a_optim} [{type(a_beta1)}]"
+        self._config['optim'] = str(a_optim)    # Optimizer - set to 'none' for no optimization
+
+        # Confirm a valid beta1 value (momentum) has been provided for use with adam optimizer
+        assert float(a_beta1) >= 0.0 and float(a_beta1) < 1.0, f"Beta1 (momentum) must be a number >= 0.0 and < 1.0: a_beta1 = {a_beta1} [{type(a_beta1)}]"
+        self._config['beta1'] = float(a_beta1)  # Beta1 (momentum) - set to 0.0 for no momentum factor
+                
+        # Confirm a valid beta2 value (RMSprop) has been provided for use with adam optimizer
+        assert float(a_beta2) >= 0.0 and float(a_beta2) < 1.0, f"Beta2 (RMSprop) must be a number >= 0.0 and < 1.0: a_beta2 = {a_beta2} [{type(a_beta2)}]"
+        self._config['beta2'] = float(a_beta2)  # Beta2 (RMSprop) - set to 0.0 for no RMSprop factor
+
+        # Confirm a valid beta2 value (RMSprop) has been provided for use with adam optimizer
+        assert float(a_epsilon) > 0.0, f"Beta2 (RMSprop) must be a small number > 0.0: a_epsilon = {a_epsilon} [{type(a_epsilon)}]"
+        self._config['a_epsilon'] = float(a_epsilon)    # Epsilon
+        
 
     def _propagate_forward(self, a_X_batch):
         """
@@ -589,24 +612,76 @@ class Multilayer_NN():
         # Now that configuration is set,
         # initialize the parameters W and b using the configuration information
         self._init_param()
+
+    def _random_mini_batches(a_X_train, a_y_train, a_batch_size = 32):
+        """
+        Create mini-batches of randomly selected examples from the training set
+        
+        Arguments:
+            a_X: Input features (numpy array) ~ shape( # features, # examples )
+            a_y: Output labels (numpy array) ~ shape ( # outputs, # examples )
+            a_batch_size: Number of examples to use for validation for each iteration
+
+        Returns: A list of minibatches, where each list element is a tuple (mb_X, mb_y)
+                 * NOTE: The last minibatch may be smaller than the others if the
+                         total number of examples is not evenly divisible by the specified mini-batch size
+                         
+        """
+        
+            # Determine the number of examples in the training set
+            m_val=a_X_train.shape[1]
             
-    def fit(self, a_X_train, a_y_train, a_alpha = 0.01, a_batch_size = 32, a_max_iter = 10000, a_lambda = 0.0):
+            # Build a list of random index values of size m_val
+            random_index_list = list(np.random.permutation(m_val))
+            
+            # Shuffle the training examples and labels using the randomized list of indices
+            shuffled_X = a_X_train[:,random_index_list]
+            shuffled_y = a_y_train[:,random_index_list].reshape(1,-1)
+            
+            # Calculate the number of complete mini-batches
+            # given the # of training examples and the batch_size using integer division
+            n_complete_batches = m_val // a_batch_size
+            
+            # Populate the minibatches in a list
+            mb = []
+            for k in range(0, n_complete_batches):
+                mb_X = shuffled_X[:,k*a_batch_size:(k+1)*a_batch_size]
+                mb_y = shuffled_y[:,k*a_batch_size:(k+1)*a_batch_size]
+                mb.append( (mb_X, mb_y) )
+
+            # If the # training examples are not evenly divisible by the batch size,
+            # calculate the size of the last mini-batch
+            if m_val % a_batch_size != 0:
+                last_batch_size = m_val - n_batches*batch_size_val
+                mb_X = shuffled_X[:,-last_batch_size:]
+                mb_y = shuffled_y[:,-last_batch_size:]
+                mb.append( (mb_X, mb_y) )
+
+            # Return the list of mini-batches
+            return mb
+         
+
+    def fit(self, a_X_train, a_y_train, a_alpha = 0.01, a_batch_size = 32, a_max_epochs = 10000, a_lambda = 0.0, a_optim='adam', a_beta1=0.9, a_beta2=0.999, a_epsilon=10e-08):
         """
         Fit the model coefficients w and b to the training data with specified arguments
         
         Arguments:
-            a_X: Input features (numpy array)
-            a_y: Output labels (numpy array)
+            a_X: Input features (numpy array) ~ shape( # features, # examples )
+            a_y: Output labels (numpy array) ~ shape ( # outputs, # examples )
             a_alpha: Learning Rate
             a_batch_size: Number of examples to use for validation for each iteration
-            a_max_iter: Maximum number of iterations to allow
+            a_max_epochs: Maximum number of epochs (i.e., full passes through the training set) to allow
             a_lambda: Regularization Rate (default 0.0 => No regularization)
+            a_optim: Optimizer - 'none' or 'adam'
+            a_beta1: Beta1 used with momentum factor (default 0.9; set to 0.0 for no momentum optimization)
+            a_beta2: Beta2 used with RMSprop factor (default 0.999; set to 0.0 for no RMSprop optimization)
+            a_epsilon: A small value Epsilon used to avoid large/unstable values due to denominator -> 0 (default 10e-08)
 
         Returns:
             None: Values are updated in:
                     * self._param: W, b
-                    * self._cache: Z, A, dA, dZ, dW, db
-                    * self._hist: n_iter, loss, accuracy
+                    * self._cache: Z, A, dA, dZ, dW, db, v, v_corrected, s, s_corrected
+                    * self._hist:  n_epochs, cost, accuracy
         """
         
         # Set DEBUG_LEVEL
@@ -616,75 +691,89 @@ class Multilayer_NN():
         assert self._config['is_configured'], "Cannot fit the model to training data until the model is configured"
 
         # Set the fit configuration, including basic error checking
-        self._set_fit_config(a_X_train, a_y_train, a_alpha, a_batch_size, a_max_iter, a_lambda)
+        self._set_fit_config(a_X_train, a_y_train, a_alpha, a_batch_size, a_max_epochs, a_lambda, a_optim, a_beta1, a_beta2, a_epsilon)
         
         # Do a basic loop through the samples for now
         # NEXT: Create a generator function to automatically manage batches
         
         # Get needed values from config info
+        max_epochs_val = self._config['max_epochs']
+        m_val = self._config['m']
         batch_size_val = self._config['batch_size']
-        n_examples_val = self._config['m']
-        max_iter_val = self._config['max_iter']
         
-        # Calculate the number of iterations available given
-        # the training sample size and the batch size
-        n_iter_target = n_examples_val // batch_size_val
-        
-        # Set the reporting interval at a power of 10 based upon n_iter_target
-        report_interval = np.power(10,np.round(np.log10(max_iter_val),0)-1)
+        # Set the reporting interval at a power of 10 based upon n_epochs_target
+        report_interval = np.power(10,np.round(np.log10(max_epochs_val),0)-1)
 
         # Display a progress update
         if DEBUG_LEVEL >=2:
-            d_text  = f"\nDEBUG: fit(): After Calculation of Interation Target\n"
-            d_text += f"n_examples: {n_examples_val}, "
-            d_text += f"batch_size: {batch_size_val}, "
-            d_text += f"max_iter: {max_iter_val}, "
-            d_text += f"n_iter_target: {n_iter_target}, "            
+            d_text  = f"\nDEBUG: fit(): After Calculation of # of Mini-Batches\n"
+            d_text += f"max_epochs (# of passes through training set): {max_epochs_val}\n"
+            d_text += f"m (# of training examples): {m_val}, "
+            d_text += f"batch_size: {batch_size_val}"            
             print(d_text)    
 
         # Initialize fit history
-        self._hist['n_iter'] = None          # Number of iterations actually performed
-        self._hist['cost'] = []              # List of Cost/Loss by Iteration
-        self._hist['accuracy'] = []          # List of Per-Batch Validation Accuracy by Iteration
+        self._hist['n_epochs'] = None        # Number of epochs actually performed
+        self._hist['cost'] = []              # List of cost/loss per epoch
+        self._hist['accuracy'] = []          # List of training accuracy per epoch
         
-        # Loop through the iterations until max_iter_val is reached
+        # Loop through epochs until max_epocs is reached.
+        # For each epic:
+        #     * Create mini-batches of size 'batch_size', with samples randomly shuffled each epoch
+        #     * Loop through each of the mini-batches to train the model
+        #     * Keep a history of the cost and training set accuracy with each epoc
+        
         progress_str = ""
-        for i in range(max_iter_val):
-            
-            # Get the batch of fit_batch_size examples for this iteration for X and y
-            # X_batch: a_X_train has shape (examples, features), so transpose to get (features, examples)
-            # y_batch: a_y_train has shape (examples, 1), so transpose to get (1, examples)
-            # POSSIBILITY: Could implement batching using numpy masked arrays
-            # POSSIBILITY: Could implement batching using a generator function
-            
-            # Create a batch index, with recognization that the total example size is finite
-            # NOTE: n_iter_target is the total example size divided by the batch size
-            #       Once the index i reaches n_iter_target, succeeding batches will reuse examples
-            b_i = i % n_iter_target
-            
-            X_batch = a_X_train[:, b_i*batch_size_val : (b_i+1)*batch_size_val]
-            y_batch = a_y_train[:, b_i*batch_size_val : (b_i+1)*batch_size_val]
-            
-            # Propagate forward to calculate for each layer: Z, A
-            self._propagate_forward(X_batch)
-            
-            # Propagate backward to calculate for each layer: dA, dZ, dW, db
-            self._propagate_backward(y_batch)
-            
-            # Update the parameters for each layer: W, b
-            self._update_param()
-            
-            # Calculate the cost (loss) and accuracy for this iteration
-            # (including update of the fit history)
-            cost_val, accuracy_val = self._calculate_cost(y_batch)
+        for k in range(max_epochs_val):
                         
-            # Display a progress update periodically (report_interval is a power of 10)
-            if (DEBUG_LEVEL >= 1) and (i % report_interval == 0):
-                d_text = f"[Iteration: {i} => Batch Index: {b_i}]: Cost J(w,b)={cost_val:0.4f}, Batch Accuracy={accuracy_val:0.4f}"
-                print(d_text)
+            # Create a list of randomly shufflied mini-batches
+            mb = _random_mini_batches(a_X_train, a_y_train, batch_size_val)
+            
+            # Display a progress update
+            if DEBUG_LEVEL >=2:
+            d_text  = f"\nDEBUG: fit(): After Creation of Random Mini-Batches\n"
+            d_text += f"# of mini-batches: {len(mb)}"            
+            print(d_text)
+            
+            # Initial the per-epoch cost
+            cost_total = 0
+
+            for mb in minibatches:
+            
+                # Get the batch of fit_batch_size examples for this iteration for X and y
+                # X_batch: a_X_train has shape (examples, features), so transpose to get (features, examples)
+                # y_batch: a_y_train has shape (examples, 1), so transpose to get (1, examples)
+                # POSSIBILITY: Could implement batching using numpy masked arrays
+                # POSSIBILITY: Could implement batching using a generator function
+
+                # Create a batch index, with recognization that the total example size is finite
+                # NOTE: n_epochs_target is the total example size divided by the batch size
+                #       Once the index i reaches n_epochs_target, succeeding batches will reuse examples
+                b_i = i % n_epochs_target
+
+                X_batch = a_X_train[:, b_i*batch_size_val : (b_i+1)*batch_size_val]
+                y_batch = a_y_train[:, b_i*batch_size_val : (b_i+1)*batch_size_val]
+
+                # Propagate forward to calculate for each layer: Z, A
+                self._propagate_forward(X_batch)
+
+                # Propagate backward to calculate for each layer: dA, dZ, dW, db
+                self._propagate_backward(y_batch)
+
+                # Update the parameters for each layer: W, b
+                self._update_param()
+
+                # Calculate the cost (loss) and accuracy for this iteration
+                # (including update of the fit history)
+                cost_val, accuracy_val = self._calculate_cost(y_batch)
+
+                # Display a progress update periodically (report_interval is a power of 10)
+                if (DEBUG_LEVEL >= 1) and (i % report_interval == 0):
+                    d_text = f"[Iteration: {i} => Batch Index: {b_i}]: Cost J(w,b)={cost_val:0.4f}, Batch Accuracy={accuracy_val:0.4f}"
+                    print(d_text)
                 
         # Save the number of iterations actually performed
-        self._hist['n_iter'] = i+1
+        self._hist['n_epochs'] = i+1
             
         # Set the flag that fit has been performed
         self._config['is_fitted'] = True

@@ -103,7 +103,7 @@ class Multilayer_NN():
             'alpha': None,              # Learning Rate
             'lambda': None,             # Regularization Rate
             'batch_size': None,         # Size of mini-batches used for training in each iteration
-            'max_epochs': None,         # Maximum number of passes through the entire training set (i.e., epochs) to allow
+            'max_epochs': None,         # Maximum number of epochs (i.e., passes through the entire training set) to allow
             'm': None,                  # Number of examples in the training set inputs
             'n_x': None,                # Number of features in the training set inputs
             'n_y': None,                # Number of outputs in the training set labels
@@ -133,9 +133,8 @@ class Multilayer_NN():
         # History
         # - Fitting history and related info:
         self._hist = {
-            'n_epochs': None,        # Number of epochs over which training was actually performed
-            'cost': [],              # List of cost/loss per epoch
-            'accuracy': []           # List of training accuracy per epoch
+            'cost': [],              # List of cost (loss) per epoch
+            'accuracy': []           # List of training set accuracy per epoch
         }
         
     def _init_param(self):
@@ -191,7 +190,7 @@ class Multilayer_NN():
         
         return retval
 
-    def _set_fit_config(self, a_X, a_y, a_alpha = 0.01, a_batch_size = 32, a_max_epochs = 10000, a_lambda=0.0, a_optim='none', a_beta1=0.9, a_beta2=0.999, a_epsilon=10e-08):
+    def _set_fit_config(self, a_X, a_y, a_alpha = 0.01, a_batch_size = 32, a_max_epochs = 10000, a_lambda=0.0, a_optim='gd', a_beta1=0.9, a_beta2=0.999, a_epsilon=10e-08):
         """
         Perform fit argument checks and set attributes
         
@@ -258,7 +257,7 @@ class Multilayer_NN():
         self._config['m'] = int(a_X.shape[1])    # Number of Examples
         
         # Confirm a valid optimizer has been selected
-        valid_optimizers=['none', 'adam']
+        valid_optimizers=['gd', 'adam']
         assert str(a_optim) in valid_optimizers, f"Optimizer must be selected from [{valid_optimizers}]: a_optim = {a_optim} [{type(a_beta1)}]"
         self._config['optim'] = str(a_optim)    # Optimizer - set to 'none' for no optimization
 
@@ -494,8 +493,8 @@ class Multilayer_NN():
             a_lambda: Regularization parameter, with a_lambda = 0.0 => No regularization
 
         Returns:
-            cost_val: Cost(Loss) calculated for this batch -- not scaled by number of examples or batch size
-            accuracy_val: Accuracy for this batch
+            cost_val: Cost(Loss) for this batch -- not scaled by number of examples or batch size
+            deviations_val: Sum of actual vs. prediction deviations -- not scaled by number of examples or batch size
         """
         
         #DEBUG
@@ -517,9 +516,9 @@ class Multilayer_NN():
         AL_val = self._cache['A']['A'+str(L_val)]
 
         # Calculate the cost for this iteration
-        # Revised: Calculate only the total cost here,
-        # and then normalize by the number of samples in the calling function
         # cost_val = - (1/n_batch_size) * np.sum( a_y_batch*np.log(AL_val) + (1-a_y_batch)*np.log(1-AL_val) )
+        # Revised: Calculate only the total cost here,
+        # and then will normalize by the number of examples in the calling function
         cost_val = - np.sum( a_y_batch*np.log(AL_val) + (1-a_y_batch)*np.log(1-AL_val) )
         
         # Calculate the regularization cost for this iteration if required
@@ -545,9 +544,9 @@ class Multilayer_NN():
                 cost_reg += np.sum( np.square( self._param['W']['W'+str(layer)] ) )
 
             # Scale the regularization cost by 1/(number of samples) and a_lambda/2.0
+            # cost_reg *= 1.0/n_batch_size * lambda_reg_rate/2.0
             # Revised: Calculate only the total regularization cost here,
             # and then normalize by the number of samples in the calling function
-            # cost_reg *= 1.0/n_batch_size * lambda_reg_rate/2.0
             cost_reg *= lambda_reg_rate/2.0
             
             # Add this regularization cost to the overall cost
@@ -556,9 +555,12 @@ class Multilayer_NN():
         # Calculate the accuracy for this batch
         # NOTE: A-Y = dZ, which is already calculated and cached,
         #       but will just use A and Y directly here to remove dependency on back propagation
-        accuracy_val = 1.0 - ( np.sum(np.round(np.abs(AL_val-a_y_batch))) / n_batch_size )
+        # accuracy_val = 1.0 - ( np.sum(np.round(np.abs(AL_val-a_y_batch))) / n_batch_size )
+        # Revised: Calculate only the total regularization cost here,
+        # and then normalize by the number of samples in the calling function
+        deviations_val = np.sum( np.round(np.abs(AL_val-a_y_batch)) )
 
-        return cost_val, accuracy_val
+        return cost_val, deviations_val
 
 
     def _update_hist(self, a_cost, a_accuracy ):
@@ -566,11 +568,11 @@ class Multilayer_NN():
         Add one entry to the fit history
         
         Arguments:
-            a_cost: Cost(Loss) calculated for this iteration
-            a_accuracy: Batch accuracy for this iteration
+            a_cost: Cost(Loss) calculated for one epoch
+            a_accuracy: Batch accuracy for one epoch
             
         Returns:
-            None: Values are updated in self._hist: loss, accuracy
+            None: Values are updated in self._hist: cost, accuracy
         """
 
         # Confirm that the model is configured before attempting to initialize the parameters
@@ -655,7 +657,7 @@ class Multilayer_NN():
         # If the # training examples are not evenly divisible by the batch size,
         # calculate the size of the last mini-batch
         if m_val % a_batch_size != 0:
-            last_batch_size = m_val - n_batches*batch_size_val
+            last_batch_size = m_val - n_complete_batches*batch_size_val
             mb_X = shuffled_X[:,-last_batch_size:]
             mb_y = shuffled_y[:,-last_batch_size:]
             mb_list.append( (mb_X, mb_y) )
@@ -664,7 +666,7 @@ class Multilayer_NN():
         return mb_list
          
 
-    def fit(self, a_X_train, a_y_train, a_alpha = 0.01, a_batch_size = 32, a_max_epochs = 10000, a_lambda = 0.0, a_optim='adam', a_beta1=0.9, a_beta2=0.999, a_epsilon=10e-08):
+    def fit(self, a_X_train, a_y_train, a_alpha = 0.01, a_batch_size = 32, a_max_epochs = 10000, a_lambda = 0.0, a_optim='gd', a_beta1=0.9, a_beta2=0.999, a_epsilon=10e-08):
         """
         Fit the model coefficients w and b to the training data with specified arguments
         
@@ -684,7 +686,7 @@ class Multilayer_NN():
             None: Values are updated in:
                     * self._param: W, b
                     * self._cache: Z, A, dA, dZ, dW, db, v, v_corrected, s, s_corrected
-                    * self._hist:  n_epochs, cost, accuracy
+                    * self._hist:  cost, accuracy
         """
         
         # Set DEBUG_LEVEL
@@ -695,16 +697,12 @@ class Multilayer_NN():
 
         # Set the fit configuration, including basic error checking
         self._set_fit_config(a_X_train, a_y_train, a_alpha, a_batch_size, a_max_epochs, a_lambda, a_optim, a_beta1, a_beta2, a_epsilon)
-        
-        # Do a basic loop through the samples for now
-        # NEXT: Create a generator function to automatically manage batches
-        
         # Get needed values from config info
         max_epochs_val = self._config['max_epochs']
         m_val = self._config['m']
         batch_size_val = self._config['batch_size']
         
-        # Set the reporting interval at a power of 10 based upon n_epochs_target
+        # Set the reporting interval at a power of 10 based upon max_epochs_val
         report_interval = np.power(10,np.round(np.log10(max_epochs_val),0)-1)
 
         # Display a progress update
@@ -716,20 +714,18 @@ class Multilayer_NN():
             print(d_text)    
 
         # Initialize fit history
-        self._hist['n_epochs'] = None        # Number of epochs actually performed
         self._hist['cost'] = []              # List of cost/loss per epoch
         self._hist['accuracy'] = []          # List of training accuracy per epoch
         
-        # Loop through epochs until max_epocs is reached.
-        # For each epic:
-        #     * Create mini-batches of size 'batch_size', with samples randomly shuffled each epoch
+        # Loop through epochs until max_epochs_val is reached.
+        # For each epoch:
+        #     * Create mini-batches of size 'batch_size', with samples randomly shuffled amongst the batches
         #     * Loop through each of the mini-batches to train the model
-        #     * Keep a history of the cost and training set accuracy with each epoc
+        #     * Keep a history of the cost and training set accuracy for each epoch
         
-        progress_str = ""
         for k in range(max_epochs_val):
                         
-            # Create a list of randomly shufflied mini-batches
+            # Create a list of randomly shuffled mini-batches
             mb_list = self._random_mini_batches(a_X_train, a_y_train, batch_size_val)
             n_batches = len(mb_list)
             
@@ -741,12 +737,18 @@ class Multilayer_NN():
             
             # Initial the per-epoch cost
             cost_total = 0
-            accuracy_total = 0
+            deviations_total = 0
             
             # Loop through each mini-batch
             for mb in mb_list:            
                 # Retrieve X and y from this minibatch
                 X_batch, y_batch = mb
+
+                if DEBUG_LEVEL >=3:
+                    d_text  = f"\nDEBUG: fit(): In Mini-Batch Loop\n"
+                    d_text += f"# of examples X_batch: {X_batch.shape[1]}, X_batch.shape: {X_batch.shape}, "
+                    d_text += f"# of examples y_batch: {y_batch.shape[1]}, y_batch.shape: {y_batch.shape}"
+                    print(d_text)
 
                 # Propagate forward to calculate for each layer: Z, A
                 self._propagate_forward(X_batch)
@@ -757,28 +759,27 @@ class Multilayer_NN():
                 # Update the parameters for each layer: W, b
                 self._update_param()
 
-                # Calculate the cost and avg. accuracy for this batch
-                cost_val, accuracy_val = self._calculate_cost(y_batch)
+                # Calculate the cost and actual vs. prediction deviations (without 1/m factor)
+                cost_val, deviations_val = self._calculate_cost(y_batch)
                 
                 # Accumulate the cost and accuracy across all mini-batches for the entire epoch
                 cost_total += cost_val
-                accuracy_total += accuracy_val
+                deviations_total += deviations_val
 
-            # Calculate the per-epoch info
-            cost_avg = cost_total / m_val                # Average cost for this epoch
-            accuracy_avg = accuracy_total / n_batches    # Average accuracy for this epoch
+            # Scale the cost by number of examples in the epoch
+            cost_epoch = cost_total / m_val
+            
+            # Scale the cost by number of examples in the epoch
+            accuracy_epoch = deviations_total / m_val
 
             # Update the fit history with the cost and accuracy for this iteration
-            self._update_hist(cost_avg, accuracy_avg)
+            self._update_hist(cost_epoch, accuracy_epoch)
         
             # Display a progress update periodically (report_interval is a power of 10)
             if (DEBUG_LEVEL >= 1) and (k % report_interval == 0):
-                d_text = f"[Epoch: {k} => Cost J(w,b)={cost_avg:0.4f}, Avg. Accuracy={accuracy_avg:0.4f}"
+                d_text = f"[Epoch: {k} => Cost J(w,b)={cost_epoch:0.4f}, Accuracy={accuracy_epoch:0.4f}"
                 print(d_text)
                 
-        # Save the number of iterations actually performed
-        self._hist['n_epochs'] = k
-            
         # Set the flag that fit has been performed
         self._config['is_fitted'] = True
         

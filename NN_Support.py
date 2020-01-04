@@ -170,18 +170,17 @@ def plot_fit_history(a_fit_hist, a_valid_info = None):
         raise
         
     # Determine how many iterations/epochs are in the fit history
-    # h_n_iter = a_fit_hist['n_iter']
-    h_n_iter = len(h_accuracy)
+    h_n_epochs = len(h_accuracy)
 
     # Skip some samples if there are too many points to plot
     # NOTE: Scale things so we have no more than 1000 points to plot.
     PLOT_MAX_POINTS = 1000
-    point_increment = max(1, h_n_iter // PLOT_MAX_POINTS)
+    point_increment = max(1, h_n_epochs // PLOT_MAX_POINTS)
 
     if DEBUG_LEVEL >= 2:
         d_text  = f"\nDEBUG: plot_fit_history(): After Argument Checks\n"
         
-        d_text += f"h_n_iter - Value: {h_n_iter}, Type: {type(h_n_iter)},\n"
+        d_text += f"h_n_epochs - Value: {h_n_epochs}, Type: {type(h_n_epochs)},\n"
         d_text += f"h_cost - Len: {len(h_cost)}, Type: {type(h_cost)},\n"
         d_text += f"h_accuracy - Len: {len(h_accuracy)}, Type: {type(h_accuracy)},\n"
         
@@ -214,25 +213,29 @@ def plot_fit_history(a_fit_hist, a_valid_info = None):
               label='Loss (Training)', c='k', linestyle='-')
 
     # Add text note on points of max and min accuracy
-    acc_min_idx = np.argmin(h_accuracy)
+    # acc_min_idx = np.argmin(h_accuracy)
+    acc_min_idx = h_accuracy.index(min(h_accuracy))
     ax1.text( x=acc_min_idx, y=h_accuracy[acc_min_idx]*1.02, c='b',
               s=f"Min: {h_accuracy[acc_min_idx]:.4f}\nEpoch: {acc_min_idx}" )
 
-    acc_max_idx = np.argmax(h_accuracy)
+    # acc_max_idx = np.argmax(h_accuracy)
+    acc_max_idx = h_accuracy.index(max(h_accuracy))
     ax1.text( x=acc_max_idx, y=h_accuracy[acc_max_idx]*1.02, c='b',
               s=f"Max: {h_accuracy[acc_max_idx]:.4f}\nEpoch: {acc_max_idx}" )
 
     # Add text note on points of max and min cost
-    loss_min_idx = np.argmin(h_cost)
+    # loss_min_idx = np.argmin(h_cost)
+    loss_min_idx=h_cost.index(min(h_cost))
     ax2.text( x=loss_min_idx, y=h_cost[loss_min_idx]*1.02, c='r',
               s=f"Min: {h_cost[loss_min_idx]:.4f}\nEpoch: {loss_min_idx}" )
 
-    loss_max_idx = np.argmax(h_cost)
+    # loss_max_idx = np.argmax(h_cost)
+    loss_max_idx=h_cost.index(max(h_cost))
     ax2.text( x=loss_max_idx, y=h_cost[loss_max_idx]*1.02, c='b',
               s=f"Max: {h_cost[loss_max_idx]:.4f}\nEpoch: {loss_max_idx}" )
     
     # Add text note on the accuracy plot at the point when the loss is minimized
-    ax1.text( x=loss_min_idx, y=h_accuracy[loss_min_idx]*1.02, c='r',
+    ax1.text( x=loss_min_idx, y=h_accuracy[loss_min_idx]*0.90, c='r',
               s=f"Accuracy: {h_accuracy[loss_min_idx]:.4f}\n@ Min Loss:{h_cost[loss_min_idx]:.4f}\nEpoch: {loss_min_idx}" )
 
     # If populated, plot the accuracy from the test samples

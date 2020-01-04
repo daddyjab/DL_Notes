@@ -1,5 +1,6 @@
 # Dependencies: Standard libraries
 import numpy as np
+import datetime
 
 # Dependency: "NN_Support" (Activation, Evaluation, Plotting Functions)
 from NN_Support import (sigmoid, relu, leaky_relu)
@@ -134,7 +135,8 @@ class Multilayer_NN():
         # - Fitting history and related info:
         self._hist = {
             'cost': [],              # List of cost (loss) per epoch
-            'accuracy': []           # List of training set accuracy per epoch
+            'accuracy': [],          # List of training set accuracy per epoch
+            'timestamp': []          # List of timestamp per epoch (as 'datetime' objects)
         }
         
     def _init_param(self):
@@ -258,7 +260,7 @@ class Multilayer_NN():
         
         # Confirm a valid optimizer has been selected
         valid_optimizers=['gd', 'adam']
-        assert str(a_optim) in valid_optimizers, f"Optimizer must be selected from [{valid_optimizers}]: a_optim = {a_optim} [{type(a_beta1)}]"
+        assert str(a_optim) in valid_optimizers, f"Optimizer must be selected from {valid_optimizers}: a_optim = {a_optim} [{type(a_beta1)}]"
         self._config['optim'] = str(a_optim)    # Optimizer - set to 'none' for no optimization
 
         # Confirm a valid beta1 value (momentum) has been provided for use with adam optimizer
@@ -486,11 +488,10 @@ class Multilayer_NN():
     
     def _calculate_cost(self, a_y_batch):
         """
-        Calculate the cost (loss) and accuracy for one batch
+        Calculate the cost (loss) and actual vs. prediction deviations for one batch
         
         Arguments:
             a_y_batch: A batch subset of actual output values
-            a_lambda: Regularization parameter, with a_lambda = 0.0 => No regularization
 
         Returns:
             cost_val: Cost(Loss) for this batch -- not scaled by number of examples or batch size
@@ -572,7 +573,7 @@ class Multilayer_NN():
             a_accuracy: Batch accuracy for one epoch
             
         Returns:
-            None: Values are updated in self._hist: cost, accuracy
+            None: Values are updated in self._hist: cost, accuracy, timestamp
         """
 
         # Confirm that the model is configured before attempting to initialize the parameters
@@ -583,6 +584,9 @@ class Multilayer_NN():
 
         # Add the accuracy to the fit history
         self._hist['accuracy'].append(np.squeeze(a_accuracy))
+        
+        # Add a timestamp for when this update was performed
+        self._hist['timestamp'].append( datetime.datetime.now() )
 
             
     # ************************** PUBLIC METHODS **************************
@@ -723,6 +727,11 @@ class Multilayer_NN():
         #     * Loop through each of the mini-batches to train the model
         #     * Keep a history of the cost and training set accuracy for each epoch
         
+        if (DEBUG_LEVEL >= 1):
+            t_stamp=datetime.datetime.now().strftime("%m/%d/%y %I:%M:%S %p")
+            d_text = f"[{t_stamp}] Starting Model Fitting"
+            print(d_text)
+
         for k in range(max_epochs_val):
                         
             # Create a list of randomly shuffled mini-batches
@@ -770,14 +779,15 @@ class Multilayer_NN():
             cost_epoch = cost_total / m_val
             
             # Scale the cost by number of examples in the epoch
-            accuracy_epoch = deviations_total / m_val
+            accuracy_epoch = 1 - (deviations_total / m_val)
 
             # Update the fit history with the cost and accuracy for this iteration
             self._update_hist(cost_epoch, accuracy_epoch)
         
             # Display a progress update periodically (report_interval is a power of 10)
             if (DEBUG_LEVEL >= 1) and (k % report_interval == 0):
-                d_text = f"[Epoch: {k} => Cost J(w,b)={cost_epoch:0.4f}, Accuracy={accuracy_epoch:0.4f}"
+                t_stamp=datetime.datetime.now().strftime("%m/%d/%y %I:%M:%S %p")
+                d_text = f"[{t_stamp}] Epoch: {k} => Cost J(w,b)={cost_epoch:0.4f}, Accuracy={accuracy_epoch:0.4f}"
                 print(d_text)
                 
         # Set the flag that fit has been performed

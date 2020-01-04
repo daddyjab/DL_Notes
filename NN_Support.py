@@ -128,7 +128,7 @@ def evaluate(a_y_predict, a_y_actual):
     return retval    
 
 
-def plot_fit_history(a_fit_hist, a_valid_info = None):
+def plot_fit_history(a_fit_hist, a_valid_info = None, a_filename = None):
     """
     Plot the fit history, including Loss (i.e., Cost) and Training Accuracy if provided
     """
@@ -141,6 +141,9 @@ def plot_fit_history(a_fit_hist, a_valid_info = None):
         # Get the cost and accuracy lists from the fit history dictionary
         h_cost = list(a_fit_hist['cost'])
         h_accuracy = list(a_fit_hist['accuracy'])
+        
+        # Get the list of timestamps for each epoch (as 'datetime' objects)
+        h_timestamp = list(a_fit_hist['timestamp'])
 
     except Exception as e:
         # Re-raise the exception that got us here,
@@ -163,11 +166,22 @@ def plot_fit_history(a_fit_hist, a_valid_info = None):
 
             if 'accuracy' in a_valid_info.keys():
                 v_accuracy = float(a_valid_info['accuracy'])
-
+                
     except Exception as e:
         # Re-raise the exception that got us here,
         # including any error message passed along
         raise
+        
+    # Check for optional filename for plot figure
+    if a_filename is None:
+        fig_filename="DL-xx-Figure-x-Model_Fit_History.png"
+        
+    else:
+        fig_filename=str(a_filename)
+        
+        # If the specified file name has no (valid) extension, append '.png' to the filename
+        if max([f_ext in fig_filename for f_ext in [ '.jpeg', '.jpg', '.png' ] ]) == False:
+            fig_filename += ".png"
         
     # Determine how many iterations/epochs are in the fit history
     h_n_epochs = len(h_accuracy)
@@ -213,30 +227,34 @@ def plot_fit_history(a_fit_hist, a_valid_info = None):
               label='Loss (Training)', c='k', linestyle='-')
 
     # Add text note on points of max and min accuracy
-    # acc_min_idx = np.argmin(h_accuracy)
     acc_min_idx = h_accuracy.index(min(h_accuracy))
+    acc_min_ts = h_timestamp[acc_min_idx].strftime("%m/%d/%y %I:%M:%S %p")
     ax1.text( x=acc_min_idx, y=h_accuracy[acc_min_idx]*1.02, c='b',
-              s=f"Min: {h_accuracy[acc_min_idx]:.4f}\nEpoch: {acc_min_idx}" )
+              s=f"Min: {h_accuracy[acc_min_idx]:.4f}\nEpoch: {acc_min_idx} @ {acc_min_ts}" )
 
-    # acc_max_idx = np.argmax(h_accuracy)
     acc_max_idx = h_accuracy.index(max(h_accuracy))
+    acc_max_ts = h_timestamp[acc_max_idx].strftime("%m/%d/%y %I:%M:%S %p")
     ax1.text( x=acc_max_idx, y=h_accuracy[acc_max_idx]*1.02, c='b',
-              s=f"Max: {h_accuracy[acc_max_idx]:.4f}\nEpoch: {acc_max_idx}" )
+              s=f"Max: {h_accuracy[acc_max_idx]:.4f}\nEpoch: {acc_max_idx} @ {acc_max_ts}" )
 
     # Add text note on points of max and min cost
-    # loss_min_idx = np.argmin(h_cost)
-    loss_min_idx=h_cost.index(min(h_cost))
+    loss_min_idx = h_cost.index(min(h_cost))
+    loss_min_ts = h_timestamp[loss_min_idx].strftime("%m/%d/%y %I:%M:%S %p")
     ax2.text( x=loss_min_idx, y=h_cost[loss_min_idx]*1.02, c='r',
-              s=f"Min: {h_cost[loss_min_idx]:.4f}\nEpoch: {loss_min_idx}" )
+              s=f"Min: {h_cost[loss_min_idx]:.4f}\nEpoch: {loss_min_idx} @ {loss_min_ts}" )
 
-    # loss_max_idx = np.argmax(h_cost)
-    loss_max_idx=h_cost.index(max(h_cost))
+    loss_max_idx = h_cost.index(max(h_cost))
+    loss_max_ts = h_timestamp[loss_max_idx].strftime("%m/%d/%y %I:%M:%S %p")
     ax2.text( x=loss_max_idx, y=h_cost[loss_max_idx]*1.02, c='b',
-              s=f"Max: {h_cost[loss_max_idx]:.4f}\nEpoch: {loss_max_idx}" )
+              s=f"Max: {h_cost[loss_max_idx]:.4f}\nEpoch: {loss_max_idx} @ {loss_max_ts}" )
     
     # Add text note on the accuracy plot at the point when the loss is minimized
-    ax1.text( x=loss_min_idx, y=h_accuracy[loss_min_idx]*0.90, c='r',
-              s=f"Accuracy: {h_accuracy[loss_min_idx]:.4f}\n@ Min Loss:{h_cost[loss_min_idx]:.4f}\nEpoch: {loss_min_idx}" )
+    fit_tot_mins = (h_timestamp[-1] - h_timestamp[0]).total_seconds() / 60.0
+    fit_min_loss_mins = (h_timestamp[loss_min_idx] - h_timestamp[0]).total_seconds() / 60.0
+    s_text  = f"Accuracy: {h_accuracy[loss_min_idx]:.4f}\n@ Min Loss:{h_cost[loss_min_idx]:.4f}\n"
+    s_text += f"Epoch: {loss_min_idx}\n"
+    s_text += f"Fit Time to Min Loss: {fit_min_loss_mins:.2f} mins.\nTotal Fit Time: {fit_tot_mins:.2f} mins."
+    ax1.text( x=loss_min_idx, y=h_accuracy[loss_min_idx]*0.90, c='r', s=s_text )
 
     # If populated, plot the accuracy from the test samples
     try:
@@ -276,4 +294,4 @@ def plot_fit_history(a_fit_hist, a_valid_info = None):
     ax2.set_title("Model Fitting History - Loss")
 
     # Save the image to file
-    fig1.savefig("docs/DL-xx-Figure-x-Model_Fit_History.png")
+    fig1.savefig("docs/{fig_filename}")

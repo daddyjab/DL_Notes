@@ -487,15 +487,15 @@ class Multilayer_NN():
     
     def _calculate_cost(self, a_y_batch):
         """
-        Calculate the cost (loss) and accuracy for this iteration and update the fit history
+        Calculate the cost (loss) and accuracy for one batch
         
         Arguments:
             a_y_batch: A batch subset of actual output values
             a_lambda: Regularization parameter, with a_lambda = 0.0 => No regularization
 
         Returns:
-            cost_val: Cost(Loss) calculated for this iteration
-            accuracy_val: Batch accuracy for this iteration
+            cost_val: Cost(Loss) calculated for this batch -- not scaled by number of examples or batch size
+            accuracy_val: Accuracy for this batch
         """
         
         #DEBUG
@@ -517,7 +517,10 @@ class Multilayer_NN():
         AL_val = self._cache['A']['A'+str(L_val)]
 
         # Calculate the cost for this iteration
-        cost_val = - (1/n_batch_size) * np.sum( a_y_batch*np.log(AL_val) + (1-a_y_batch)*np.log(1-AL_val) )
+        # Revised: Calculate only the total cost here,
+        # and then normalize by the number of samples in the calling function
+        # cost_val = - (1/n_batch_size) * np.sum( a_y_batch*np.log(AL_val) + (1-a_y_batch)*np.log(1-AL_val) )
+        cost_val = - np.sum( a_y_batch*np.log(AL_val) + (1-a_y_batch)*np.log(1-AL_val) )
         
         # Calculate the regularization cost for this iteration if required
         if lambda_reg_rate > 0.0:
@@ -542,19 +545,19 @@ class Multilayer_NN():
                 cost_reg += np.sum( np.square( self._param['W']['W'+str(layer)] ) )
 
             # Scale the regularization cost by 1/(number of samples) and a_lambda/2.0
-            cost_reg *= 1.0/n_batch_size * lambda_reg_rate/2.0
+            # Revised: Calculate only the total regularization cost here,
+            # and then normalize by the number of samples in the calling function
+            # cost_reg *= 1.0/n_batch_size * lambda_reg_rate/2.0
+            cost_reg *= lambda_reg_rate/2.0
             
             # Add this regularization cost to the overall cost
             cost_val += cost_reg
             
-        # Calculate the batch accuracy for this iteration
+        # Calculate the accuracy for this batch
         # NOTE: A-Y = dZ, which is already calculated and cached,
         #       but will just use A and Y directly here to remove dependency on back propagation
         accuracy_val = 1.0 - ( np.sum(np.round(np.abs(AL_val-a_y_batch))) / n_batch_size )
 
-        # Update the fit history with the cost and accuracy for this iteration
-        self._update_hist(cost_val, accuracy_val)
-        
         return cost_val, accuracy_val
 
 
@@ -613,7 +616,7 @@ class Multilayer_NN():
         # initialize the parameters W and b using the configuration information
         self._init_param()
 
-    def _random_mini_batches(a_X_train, a_y_train, a_batch_size = 32):
+    def _random_mini_batches(self, a_X_train, a_y_train, a_batch_size = 32):
         """
         Create mini-batches of randomly selected examples from the training set
         
@@ -628,37 +631,37 @@ class Multilayer_NN():
                          
         """
         
-            # Determine the number of examples in the training set
-            m_val=a_X_train.shape[1]
-            
-            # Build a list of random index values of size m_val
-            random_index_list = list(np.random.permutation(m_val))
-            
-            # Shuffle the training examples and labels using the randomized list of indices
-            shuffled_X = a_X_train[:,random_index_list]
-            shuffled_y = a_y_train[:,random_index_list].reshape(1,-1)
-            
-            # Calculate the number of complete mini-batches
-            # given the # of training examples and the batch_size using integer division
-            n_complete_batches = m_val // a_batch_size
-            
-            # Populate the minibatches in a list
-            mb = []
-            for k in range(0, n_complete_batches):
-                mb_X = shuffled_X[:,k*a_batch_size:(k+1)*a_batch_size]
-                mb_y = shuffled_y[:,k*a_batch_size:(k+1)*a_batch_size]
-                mb.append( (mb_X, mb_y) )
+        # Determine the number of examples in the training set
+        m_val=a_X_train.shape[1]
 
-            # If the # training examples are not evenly divisible by the batch size,
-            # calculate the size of the last mini-batch
-            if m_val % a_batch_size != 0:
-                last_batch_size = m_val - n_batches*batch_size_val
-                mb_X = shuffled_X[:,-last_batch_size:]
-                mb_y = shuffled_y[:,-last_batch_size:]
-                mb.append( (mb_X, mb_y) )
+        # Build a list of random index values of size m_val
+        random_index_list = list(np.random.permutation(m_val))
 
-            # Return the list of mini-batches
-            return mb
+        # Shuffle the training examples and labels using the randomized list of indices
+        shuffled_X = a_X_train[:,random_index_list]
+        shuffled_y = a_y_train[:,random_index_list].reshape(1,-1)
+
+        # Calculate the number of complete mini-batches
+        # given the # of training examples and the batch_size using integer division
+        n_complete_batches = m_val // a_batch_size
+
+        # Populate the minibatches in a list
+        mb_list = []
+        for k in range(0, n_complete_batches):
+            mb_X = shuffled_X[:,k*a_batch_size:(k+1)*a_batch_size]
+            mb_y = shuffled_y[:,k*a_batch_size:(k+1)*a_batch_size]
+            mb_list.append( (mb_X, mb_y) )
+
+        # If the # training examples are not evenly divisible by the batch size,
+        # calculate the size of the last mini-batch
+        if m_val % a_batch_size != 0:
+            last_batch_size = m_val - n_batches*batch_size_val
+            mb_X = shuffled_X[:,-last_batch_size:]
+            mb_y = shuffled_y[:,-last_batch_size:]
+            mb_list.append( (mb_X, mb_y) )
+
+        # Return the list of mini-batches
+        return mb_list
          
 
     def fit(self, a_X_train, a_y_train, a_alpha = 0.01, a_batch_size = 32, a_max_epochs = 10000, a_lambda = 0.0, a_optim='adam', a_beta1=0.9, a_beta2=0.999, a_epsilon=10e-08):
@@ -727,32 +730,23 @@ class Multilayer_NN():
         for k in range(max_epochs_val):
                         
             # Create a list of randomly shufflied mini-batches
-            mb = _random_mini_batches(a_X_train, a_y_train, batch_size_val)
+            mb_list = self._random_mini_batches(a_X_train, a_y_train, batch_size_val)
+            n_batches = len(mb_list)
             
             # Display a progress update
             if DEBUG_LEVEL >=2:
-            d_text  = f"\nDEBUG: fit(): After Creation of Random Mini-Batches\n"
-            d_text += f"# of mini-batches: {len(mb)}"            
-            print(d_text)
+                d_text  = f"\nDEBUG: fit(): After Creation of Random Mini-Batches\n"
+                d_text += f"# of mini-batches: {n_batches}"            
+                print(d_text)
             
             # Initial the per-epoch cost
             cost_total = 0
-
-            for mb in minibatches:
+            accuracy_total = 0
             
-                # Get the batch of fit_batch_size examples for this iteration for X and y
-                # X_batch: a_X_train has shape (examples, features), so transpose to get (features, examples)
-                # y_batch: a_y_train has shape (examples, 1), so transpose to get (1, examples)
-                # POSSIBILITY: Could implement batching using numpy masked arrays
-                # POSSIBILITY: Could implement batching using a generator function
-
-                # Create a batch index, with recognization that the total example size is finite
-                # NOTE: n_epochs_target is the total example size divided by the batch size
-                #       Once the index i reaches n_epochs_target, succeeding batches will reuse examples
-                b_i = i % n_epochs_target
-
-                X_batch = a_X_train[:, b_i*batch_size_val : (b_i+1)*batch_size_val]
-                y_batch = a_y_train[:, b_i*batch_size_val : (b_i+1)*batch_size_val]
+            # Loop through each mini-batch
+            for mb in mb_list:            
+                # Retrieve X and y from this minibatch
+                X_batch, y_batch = mb
 
                 # Propagate forward to calculate for each layer: Z, A
                 self._propagate_forward(X_batch)
@@ -763,17 +757,27 @@ class Multilayer_NN():
                 # Update the parameters for each layer: W, b
                 self._update_param()
 
-                # Calculate the cost (loss) and accuracy for this iteration
-                # (including update of the fit history)
+                # Calculate the cost and avg. accuracy for this batch
                 cost_val, accuracy_val = self._calculate_cost(y_batch)
+                
+                # Accumulate the cost and accuracy across all mini-batches for the entire epoch
+                cost_total += cost_val
+                accuracy_total += accuracy_val
 
-                # Display a progress update periodically (report_interval is a power of 10)
-                if (DEBUG_LEVEL >= 1) and (i % report_interval == 0):
-                    d_text = f"[Iteration: {i} => Batch Index: {b_i}]: Cost J(w,b)={cost_val:0.4f}, Batch Accuracy={accuracy_val:0.4f}"
-                    print(d_text)
+            # Calculate the per-epoch info
+            cost_avg = cost_total / m_val                # Average cost for this epoch
+            accuracy_avg = accuracy_total / n_batches    # Average accuracy for this epoch
+
+            # Update the fit history with the cost and accuracy for this iteration
+            self._update_hist(cost_avg, accuracy_avg)
+        
+            # Display a progress update periodically (report_interval is a power of 10)
+            if (DEBUG_LEVEL >= 1) and (k % report_interval == 0):
+                d_text = f"[Epoch: {k} => Cost J(w,b)={cost_avg:0.4f}, Avg. Accuracy={accuracy_avg:0.4f}"
+                print(d_text)
                 
         # Save the number of iterations actually performed
-        self._hist['n_epochs'] = i+1
+        self._hist['n_epochs'] = k
             
         # Set the flag that fit has been performed
         self._config['is_fitted'] = True

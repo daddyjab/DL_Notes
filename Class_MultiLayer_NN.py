@@ -128,7 +128,11 @@ class Multilayer_NN():
             'dA': {},      # Partial derivative by A; used to calculate dZ
             'dZ': {},      # Partial derivative by Z; used to calculate dW and db
             'dW': {},      # Partial derivative by W; used for update of W coefficients
-            'db': {}       # Partial derivative by b; used for update of b coefficients
+            'db': {},      # Partial derivative by b; used for update of b coefficients
+            'v': {},       # Exponentially weighted average of the gradients dW and db
+            'v_c': {},     # Exponentially weighted average of the gradients corrected
+            's': {},       # Exponentially weighted average of the square of the gradients dW and db
+            's_c': {}      # Exponentially weighted average of the square of the gradients corrected
         }
         
         # History
@@ -171,6 +175,12 @@ class Multilayer_NN():
             self._param['W']['W'+str(layer)] = W_val
             self._param['b']['b'+str(layer)] = b_val
             
+            # Initialize the exponentially weighted average factors v and s
+            self._cache['v']["dW"+str(layer)] = np.zeros( W_val.shape )
+            self._cache['v']["db"+str(layer)] = np.zeros( b_val.shape )
+            self._cache['s']["dW"+str(layer)] = np.zeros( W_val.shape )
+            self._cache['s']["db"+str(layer)] = np.zeros( b_val.shape )
+
     def _dump_info(self):
         """
         Basic dump of all internal config, parameter, cache, and history data
@@ -373,6 +383,8 @@ class Multilayer_NN():
         # Get the batch size
         batch_size_val = self._config['batch_size']
 
+        # Get regularization rate lambda
+        lambda_val = self._config['lambda']
         
         # Ensure that the needed cache values needed to perform the update are present
         assert 'A'+str(L_val) in self._cache['A'].keys(), f"Missing cache value A{L_val} needed to update layer {layer}: A cache = {self._cache['A']}"
@@ -440,11 +452,25 @@ class Multilayer_NN():
             # Calculate dW for (current layer): dW
             # NOTE: Need to use the batch size, not total number of examples
             dW = (1/batch_size_val) * np.dot(dZ, A_m1.T)
+            
+            # If lambda > 0, apply regularization term to dW for this layer
+            # QUESTION: Scale this by batch size (batch_size_val) or total # examples (m) ???
+            if lambda_val > 0:
+#                 dW += lambda_val/self._config['m'] * W
+                dW += lambda_val/batch_size_val * W
+
+                if DEBUG_LEVEL >=2:
+                    d_text  = f"\nDEBUG: _propagate_backward(): Lambda [{lambda_val:.04f}] is > 0: Applying regularization\n"
+                    print(d_text)
+
+            # Save dW to the cache
             self._cache['dW']['dW'+str(layer)] = dW
             
             # Calculate db for (current layer): db
             # NOTE: Need to use the batch size, not total number of examples
             db = (1/batch_size_val) * np.sum(dZ, axis=1, keepdims=True)
+            
+            # Save db to the cache
             self._cache['db']['db'+str(layer)] = db
             
             if DEBUG_LEVEL >=2:
@@ -454,14 +480,15 @@ class Multilayer_NN():
                 print(d_text)
 
     
-    def _update_param(self):
+    def _update_param(self, a_iter=None):
         """
-        Update the coefficients W and b based upon propagation already performed 
+        Update the coefficients W and b based upon propagation already performed.
+        If beta1 > 0 (momentum) or beta2 > 0 (RMSprop), apply the appropriate optimization factor.
         
         Arguments:
             None: Needed info is obtained from:
-                    * self._config: L, alpha
-                    * self._cache: dW, db
+                    * self._config: L, alpha, beta1, beta2
+                    * self._cache: dW, db, v, s
 
         Returns:
             None: Values are updated for each layer in self._param: W, b
@@ -470,6 +497,13 @@ class Multilayer_NN():
         # Confirm that the model is configured before attempting to initialize the parameters
         assert self._config['is_configured'], f"Cannot update parameters W and b until the model is configured: is_configured = {self._config['is_configured']} [{type(self._config['is_configured'])}]"
 
+        # Confirm iteration number has been provided if optimization will be in use
+        assert (self._config['beta1'] == 0 and self._config['beta2'] == 0) \
+                or (not self._config['optim'] in ['adam']) \
+                or (a_iter is not None), f"Cannot apply optimization unless iteration number is provided: a_iter = {a_iter} [{type(a_iter)}]"
+        
+        iter_val = int(a_iter)
+        
         # Loop through all hidden and the final output layer (i.e., 1 through L)
         for layer in range(1, self._config['L']+1):
 
@@ -481,11 +515,45 @@ class Multilayer_NN():
             assert 'dW'+str(layer) in self._cache['dW'].keys(), f"Missing cache value dW{layer} needed to update W{layer}: dW cache = {self._cache['dW']}"
             assert 'db'+str(layer) in self._cache['db'].keys(), f"Missing cache value db{layer} needed to update b{layer}: db cache = {self._cache['db']}"
                         
-            # Adjust each parameter by Learning Rate * Derivative for that layer
+            # Adjust each parameter by Learning Rate * Derivative for this layer
             self._param['W']['W'+str(layer)] -= self._config['alpha'] * self._cache['dW']['dW'+str(layer)]
             self._param['b']['b'+str(layer)] -= self._config['alpha'] * self._cache['db']['db'+str(layer)]
+            
+            # Apply regularization factors if beta1 > 0 or beta2 > 0
+            beta1_val = self._config['beta1']
+            beta2_val = self._config['beta2']
+            epsilon_val = self._config['epsilon']
+            
+            if (self._config['optim'] in ['adam']) and (beta1_val > 0 or beta2_val > 0):
+                # Moving average of the gradients. Inputs: "v, grads, beta1". Output: "v".
+                v_dW = beta1_val*self._cache['v']["dW" + str(layer)] + (1-beta1_val)*self._cache['dW'+str(layer)]
+                v_db = beta1_val*self._cache['v']["db" + str(layer)] + (1-beta1_val)*self._cache['db'+str(layer)]
+                self._cache['v']["dW" + str(layer)] = v_dW
+                self._cache['v']["db" + str(layer)] = v_db
 
-    
+                # Compute bias-corrected first moment estimate. Inputs: "v, beta1, t". Output: "v_corrected".
+                v_dW_c = v_dW / (1 - beta1**iter_val)
+                v_db_c = v_db / (1 - beta1**iter_val)
+                self._cache['v_c']["dW" + str(layer)] = v_dW_c
+                self._cache['v_c']["db" + str(layer)] = v_db_c
+
+                # Moving average of the squared gradients. Inputs: "s, grads, beta2". Output: "s".
+                s_dW = beta2_val*self._cache['s']["dW" + str(layer)] + (1-beta2_val)*self._cache['dW'+str(layer)]**2
+                s_db = beta2_val*self._cache['s']["db" + str(layer)] + (1-beta2_val)*self._cache['db'+str(layer)]**2
+                self._cache['s']["dW" + str(layer)] = s_dW
+                self._cache['s']["db" + str(layer)] = s_db
+
+                # Compute bias-corrected second raw moment estimate. Inputs: "s, beta2, t". Output: "s_corrected".
+                s_dW_c = s_dW / (1 - beta2**iter_val)
+                s_db_c = s_db / (1 - beta2**iter_val)
+                self._cache['s_c']["dW" + str(layer)] = s_dW_c
+                self._cache['s_c']["db" + str(layer)] = s_db_c
+
+                # Update parameters.
+                # Inputs: "parameters, learning_rate, v_corrected, s_corrected, epsilon". Output: "parameters".
+                self._param['W']['W'+str(layer)] -= self._config['alpha']*v_dW_c/(np.sqrt(s_dW_c)+epsilon_val)
+                self._param['b']['b'+str(layer)] -= self._config['alpha']*v_db_c/(np.sqrt(s_db_c)+epsilon_val)
+                
     def _calculate_cost(self, a_y_batch):
         """
         Calculate the cost (loss) and actual vs. prediction deviations for one batch
@@ -727,6 +795,10 @@ class Multilayer_NN():
         #     * Loop through each of the mini-batches to train the model
         #     * Keep a history of the cost and training set accuracy for each epoch
         
+        # Count the number of minibatches processed
+        # -- needed for correction of exponentially weighted averages used with adam optimization
+        n_iter = 0
+        
         if (DEBUG_LEVEL >= 1):
             t_stamp=datetime.datetime.now().strftime("%m/%d/%y %I:%M:%S %p")
             d_text = f"[{t_stamp}] Starting Model Fitting"
@@ -766,7 +838,8 @@ class Multilayer_NN():
                 self._propagate_backward(y_batch)
 
                 # Update the parameters for each layer: W, b
-                self._update_param()
+                n_iter += 1  # Increment the counter of mini-batches processed -- needed for adam optimization
+                self._update_param(n_iter)
 
                 # Calculate the cost and actual vs. prediction deviations (without 1/m factor)
                 cost_val, deviations_val = self._calculate_cost(y_batch)

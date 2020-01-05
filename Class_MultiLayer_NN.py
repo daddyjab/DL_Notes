@@ -273,7 +273,7 @@ class Multilayer_NN():
 
         # Confirm a valid beta2 value (RMSprop) has been provided for use with adam optimizer
         assert float(a_epsilon) > 0.0, f"Beta2 (RMSprop) must be a small number > 0.0: a_epsilon = {a_epsilon} [{type(a_epsilon)}]"
-        self._config['a_epsilon'] = float(a_epsilon)    # Epsilon
+        self._config['epsilon'] = float(a_epsilon)    # Epsilon
         
 
     def _propagate_forward(self, a_X_batch):

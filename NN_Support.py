@@ -71,6 +71,7 @@ def evaluate(a_y_predict, a_y_actual):
         a_y_actual: Actual output labels
 
     Returns: A dictionary with the following values:
+        'n_examples': Number of actual examples a_y_actual
         'predict_accuracy': Accuracy of the prediction
         'predict_proba_label_1': Probability of a correct prediction when actual label is 1
         'predict_proba_label_0': Probability of a correct prediction when actual label is 0
@@ -120,7 +121,7 @@ def evaluate(a_y_predict, a_y_actual):
     
     # Return the accuracy
     retval = {
-        # 'cost': cost_val,
+        'n_examples': np.size(y_act),
         'accuracy': predict_accuracy,
         'proba_label_1': predict_proba_label_1,
         'proba_label_0': predict_proba_label_0
@@ -285,13 +286,14 @@ def plot_fit_history(a_fit_hist, a_valid_info = None, a_filename = None):
     ax1.legend(loc='lower right')
     ax1.set_xlabel("Epoch")
     ax1.set_ylabel("Batch Accuracy")
-    ax1.set_title("Model Fitting History - Accuracy")
+    ax1.set_title(f"Model Fitting History - Accuracy\nFilename: {fig_filename}")
 
     # Set Cost plot title, axis labeling, and legend position
     ax2.legend(loc='upper right')
     ax2.set_xlabel("Epoch")
     ax2.set_ylabel("Batch Loss")
-    ax2.set_title("Model Fitting History - Loss")
+    ax2.set_title(f"Model Fitting History - Loss\nFilename: {fig_filename}")
 
     # Save the image to file
-    fig1.savefig("docs/{fig_filename}")
+    fig1.savefig(f"docs/{fig_filename}")
+    

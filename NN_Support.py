@@ -206,7 +206,7 @@ def plot_fit_history(a_fit_hist, a_valid_info = None, a_filename = None):
         print(d_text)    
 
     # Figure with 2 subplots: Accuracy and Cost
-    fig1 = plt.figure( figsize=(20,10) )
+    fig1 = plt.figure( figsize=(20,15) )
 
     # Accuracy plot
     ax1 = fig1.add_subplot( 2,1,1 )

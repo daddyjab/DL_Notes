@@ -365,7 +365,7 @@ class Multilayer_NN():
         DEBUG_LEVEL = 0
         
         # Confirm that the model is configured before attempting to initialize the parameters
-        assert self._config['is_configured'], f"Cannot propagate forward until the model is configured: is_configured = {self._config['is_configured']} [{type(self._config['is_configured'])}]"
+        assert self._config['is_configured'], f"Cannot propagate backward until the model is configured: is_configured = {self._config['is_configured']} [{type(self._config['is_configured'])}]"
 
         # Get the the output layer number
         L_val = self._config['L']

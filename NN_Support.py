@@ -296,4 +296,3 @@ def plot_fit_history(a_fit_hist, a_valid_info = None, a_filename = None):
 
     # Save the image to file
     fig1.savefig(f"docs/{fig_filename}")
-    

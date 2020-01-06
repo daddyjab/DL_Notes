@@ -151,8 +151,9 @@ class Multilayer_NN():
             None: Configuration info is obtained from self._config: all_layers, L
                         
         Returns:
-            None: Values are initialized for each layer in self._param: W, b
-        
+            None: Values are initialized for each layer in
+                * self._param: W, b
+                * self._config: v, s
         """
         
         # Confirm that the model is configured before attempting to initialize the parameters
@@ -202,7 +203,7 @@ class Multilayer_NN():
         
         return retval
 
-    def _set_fit_config(self, a_X, a_y, a_alpha = 0.01, a_batch_size = 32, a_max_epochs = 10000, a_lambda=0.0, a_optim='gd', a_beta1=0.9, a_beta2=0.999, a_epsilon=10e-08):
+    def _set_fit_config(self, a_X, a_y, a_alpha = 0.01, a_batch_size = 32, a_max_epochs = 10000, a_lambda=0.0, a_optim='gd', a_beta1=0.9, a_beta2=0.999, a_epsilon=1e-08):
         """
         Perform fit argument checks and set attributes
         
@@ -526,26 +527,26 @@ class Multilayer_NN():
             
             if (self._config['optim'] in ['adam']) and (beta1_val > 0 or beta2_val > 0):
                 # Moving average of the gradients. Inputs: "v, grads, beta1". Output: "v".
-                v_dW = beta1_val*self._cache['v']["dW" + str(layer)] + (1-beta1_val)*self._cache['dW'+str(layer)]
-                v_db = beta1_val*self._cache['v']["db" + str(layer)] + (1-beta1_val)*self._cache['db'+str(layer)]
+                v_dW = beta1_val*self._cache['v']["dW" + str(layer)] + (1-beta1_val)*self._cache['dW']['dW'+str(layer)]
+                v_db = beta1_val*self._cache['v']["db" + str(layer)] + (1-beta1_val)*self._cache['db']['db'+str(layer)]
                 self._cache['v']["dW" + str(layer)] = v_dW
                 self._cache['v']["db" + str(layer)] = v_db
 
                 # Compute bias-corrected first moment estimate. Inputs: "v, beta1, t". Output: "v_corrected".
-                v_dW_c = v_dW / (1 - beta1**iter_val)
-                v_db_c = v_db / (1 - beta1**iter_val)
+                v_dW_c = v_dW / (1 - beta1_val**iter_val)
+                v_db_c = v_db / (1 - beta1_val**iter_val)
                 self._cache['v_c']["dW" + str(layer)] = v_dW_c
                 self._cache['v_c']["db" + str(layer)] = v_db_c
 
                 # Moving average of the squared gradients. Inputs: "s, grads, beta2". Output: "s".
-                s_dW = beta2_val*self._cache['s']["dW" + str(layer)] + (1-beta2_val)*self._cache['dW'+str(layer)]**2
-                s_db = beta2_val*self._cache['s']["db" + str(layer)] + (1-beta2_val)*self._cache['db'+str(layer)]**2
+                s_dW = beta2_val*self._cache['s']["dW" + str(layer)] + (1-beta2_val)*self._cache['dW']['dW'+str(layer)]**2
+                s_db = beta2_val*self._cache['s']["db" + str(layer)] + (1-beta2_val)*self._cache['db']['db'+str(layer)]**2
                 self._cache['s']["dW" + str(layer)] = s_dW
                 self._cache['s']["db" + str(layer)] = s_db
 
                 # Compute bias-corrected second raw moment estimate. Inputs: "s, beta2, t". Output: "s_corrected".
-                s_dW_c = s_dW / (1 - beta2**iter_val)
-                s_db_c = s_db / (1 - beta2**iter_val)
+                s_dW_c = s_dW / (1 - beta2_val**iter_val)
+                s_db_c = s_db / (1 - beta2_val**iter_val)
                 self._cache['s_c']["dW" + str(layer)] = s_dW_c
                 self._cache['s_c']["db" + str(layer)] = s_db_c
 
@@ -684,7 +685,7 @@ class Multilayer_NN():
         self._config['n_y'] = int(a_layers[self._config['L']])  # Number of Outputs (y)
                 
         # Confirmed that the configuration has been set
-        self._config['is_configured'] = True;
+        self._config['is_configured'] = True
         
         # Now that configuration is set,
         # initialize the parameters W and b using the configuration information
@@ -738,7 +739,7 @@ class Multilayer_NN():
         return mb_list
          
 
-    def fit(self, a_X_train, a_y_train, a_alpha = 0.01, a_batch_size = 32, a_max_epochs = 10000, a_lambda = 0.0, a_optim='gd', a_beta1=0.9, a_beta2=0.999, a_epsilon=10e-08):
+    def fit(self, a_X_train, a_y_train, a_alpha = 0.01, a_batch_size = 32, a_max_epochs = 10000, a_lambda = 0.0, a_optim='gd', a_beta1=0.9, a_beta2=0.999, a_epsilon=1e-08):
         """
         Fit the model coefficients w and b to the training data with specified arguments
         

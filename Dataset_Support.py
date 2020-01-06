@@ -1,6 +1,24 @@
+# File: Dataset_Support.py
+# Owner: Jeff Brown
+
+# Dependencies: Standard libraries
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import math
+
+# Machine Learning - Keras (Tensorflow) -  Dataset Generation
+from keras.datasets import mnist      # Images: Handwritten digits 0-9 (28x28 grayscale, 60K train, 10K test)
+
+# Function to import the Keras MNIST handwritten digits sample dataset
+def mnist_load_ds():
+    (X_train, y_train), (X_test, y_test) = mnist.load_data()
+    return (X_train, y_train), (X_test, y_test)
+
 
 # Function to plot a list of up to 10 digits on a single subplot
-def plot_digit_list( a_X_list = None, a_y_list = None, a_find_all_digits = False):
+def mnist_plot_digit_list( a_X_list = None, a_y_list = None, a_find_all_digits = False):
     # The first 10 digits from the specified list
     
     # If no list is specified then return None        

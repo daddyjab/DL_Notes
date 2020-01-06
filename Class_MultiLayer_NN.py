@@ -1,3 +1,6 @@
+# File: Class_MultiLayer_NN.py
+# Owner: Jeff Brown
+
 # Dependencies: Standard libraries
 import numpy as np
 import datetime

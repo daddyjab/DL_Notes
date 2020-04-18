@@ -1,3 +1,7 @@
+# File: NN_Support.py
+# Owner: Jeff Brown
+
+# Dependencies: Standard libraries
 import numpy as np
 import matplotlib.pyplot as plt
 

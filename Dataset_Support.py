@@ -9,7 +9,7 @@ import seaborn as sns
 import math
 
 # Machine Learning - Keras (Tensorflow) -  Dataset Generation
-from keras.datasets import mnist      # Images: Handwritten digits 0-9 (28x28 grayscale, 60K train, 10K test)
+from tensorflow.keras.datasets import mnist      # Images: Handwritten digits 0-9 (28x28 grayscale, 60K train, 10K test)
 
 # Function to import the Keras MNIST handwritten digits sample dataset
 def mnist_load_ds():
